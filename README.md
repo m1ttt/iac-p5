@@ -6,6 +6,20 @@ Cloudflare Worker created with the Cloudflare CLI (`npm create cloudflare@latest
 Hello World template, TypeScript). GitHub Actions builds the project, runs the
 unit tests and deploys the Worker to Cloudflare on every push to `main`.
 
+Live: https://iac-p5.mike-iteso.workers.dev
+
+The Worker serves a landing page for a cat shelter. Every cat illustration is
+inline SVG, so the page loads no external asset.
+
+## Routes
+
+| Route | Response |
+| --- | --- |
+| `GET /` | Landing page of the shelter |
+| `GET /api/gatos` | The cat list in JSON |
+| `GET /api/health` | Worker status in JSON |
+| Any other path | 404 in JSON |
+
 ## Stack
 
 - Cloudflare Workers (`wrangler` v4)
