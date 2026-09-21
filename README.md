@@ -38,20 +38,18 @@ inline SVG, so the page loads no external asset.
 
 ## Pipeline
 
-`.github/workflows/deploy.yml` runs on every push to `main`:
+The deploy runs on Cloudflare Workers Builds. The repository `m1ttt/iac-p5` is
+connected to the Worker in the Cloudflare dashboard, branch `main`. On every
+push Cloudflare installs the dependencies, runs `npm run test -- run` as the
+build command and then `npx wrangler deploy`. A failed test stops the deploy.
+
+`.github/workflows/deploy.yml` runs the same checks on GitHub on every push to
+`main`:
 
 1. `actions/checkout@v4` - get the code.
 2. `actions/setup-node@v4` - install Node.js 22.
 3. `npm ci` - install the dependencies from `package-lock.json`.
-4. `npm run test -- run` - run the unit tests. A failed test stops the deploy.
-5. `cloudflare/wrangler-action@v3` - deploy the Worker to Cloudflare.
-
-## Required GitHub secrets
-
-| Secret | Value |
-| --- | --- |
-| `CLOUDFLARE_API_TOKEN` | API token created with the "Edit Cloudflare Workers" template |
-| `CLOUDFLARE_ACCOUNT_ID` | Account ID from the Cloudflare dashboard |
+4. `npm run test -- run` - run the unit tests.
 
 ## Worker configuration
 
