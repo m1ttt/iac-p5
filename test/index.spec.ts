@@ -11,8 +11,8 @@ import worker from "../src/index";
 // `Request` to pass to `worker.fetch()`.
 const IncomingRequest = Request<unknown, IncomingRequestCfProperties>;
 
-describe("Practica 5 worker", () => {
-	it("serves the HTML page on / (unit style)", async () => {
+describe("Refugio Michi worker", () => {
+	it("serves the landing page on / (unit style)", async () => {
 		const request = new IncomingRequest("http://example.com/");
 		const ctx = createExecutionContext();
 		const response = await worker.fetch(request, env, ctx);
@@ -20,14 +20,17 @@ describe("Practica 5 worker", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("content-type")).toContain("text/html");
-		expect(await response.text()).toContain("Practica 5");
+		expect(await response.text()).toContain("Un <em>gatito</em> te está esperando");
 	});
 
-	it("serves the HTML page on / (integration style)", async () => {
+	it("lists every cat on the landing page (integration style)", async () => {
 		const response = await SELF.fetch("https://example.com/");
+		const html = await response.text();
 
 		expect(response.status).toBe(200);
-		expect(await response.text()).toContain("Cloudflare Worker");
+		for (const nombre of ["Michi", "Pelusa", "Tizón", "Canela", "Nube", "Bigotes"]) {
+			expect(html).toContain(nombre);
+		}
 	});
 
 	it("reports the status on /api/health", async () => {
@@ -37,7 +40,24 @@ describe("Practica 5 worker", () => {
 		expect(await response.json()).toEqual({
 			status: "ok",
 			service: "iac-p5",
-			version: "1.1.0",
+			version: "2.0.0",
+		});
+	});
+
+	it("returns the cats on /api/gatos", async () => {
+		const response = await SELF.fetch("https://example.com/api/gatos");
+		const body = (await response.json()) as {
+			total: number;
+			gatos: { nombre: string; edad: string; rasgo: string }[];
+		};
+
+		expect(response.status).toBe(200);
+		expect(body.total).toBe(6);
+		expect(body.gatos).toHaveLength(6);
+		expect(body.gatos[0]).toEqual({
+			nombre: "Michi",
+			edad: "4 meses",
+			rasgo: "Duerme sobre el teclado",
 		});
 	});
 
