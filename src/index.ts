@@ -1,32 +1,18 @@
 /**
- * Practica 5 - Cloudflare Worker deployed with GitHub Actions.
+ * Practica 7 - Cloudflare Worker with a DEV and a PROD environment.
  *
  * Routes:
- *   GET /            Landing page of the cat shelter
- *   GET /api/health  JSON status of the Worker
- *   GET /api/gatos   JSON list of the cats
- *   *                404 in JSON
+ *   GET  /               Landing page of the cat shelter
+ *   GET  /api/health     JSON status of the Worker and its environment
+ *   GET  /api/gatos      JSON list of the cats
+ *   POST /api/adopciones Adoption request, checked by validateAdopcion
+ *   *                    404 in JSON
  */
 
-const VERSION = "2.0.0";
+import { GATOS, type Gato } from "./gatos";
+import { validateAdopcion } from "./validators";
 
-type Gato = {
-	nombre: string;
-	edad: string;
-	rasgo: string;
-	pelaje: string;
-	oreja: string;
-	ojo: string;
-};
-
-const GATOS: Gato[] = [
-	{ nombre: "Michi", edad: "4 meses", rasgo: "Duerme sobre el teclado", pelaje: "#f0a05a", oreja: "#f7c9a0", ojo: "#2e7d5b" },
-	{ nombre: "Pelusa", edad: "7 meses", rasgo: "Ronronea sin parar", pelaje: "#b9b3ad", oreja: "#e2ddd8", ojo: "#3f6ea8" },
-	{ nombre: "Tizón", edad: "1 año", rasgo: "Caza tapitas de refresco", pelaje: "#3c4152", oreja: "#6b7186", ojo: "#d8a13a" },
-	{ nombre: "Canela", edad: "5 meses", rasgo: "Pide croquetas a gritos", pelaje: "#c9784a", oreja: "#e8b48c", ojo: "#4f9e6a" },
-	{ nombre: "Nube", edad: "3 meses", rasgo: "Se esconde en las cajas", pelaje: "#e8e4df", oreja: "#f6f2ee", ojo: "#7f6ab8" },
-	{ nombre: "Bigotes", edad: "2 años", rasgo: "Vigila la ventana todo el día", pelaje: "#8d6748", oreja: "#c39b78", ojo: "#c2543f" },
-];
+const VERSION = "3.0.0";
 
 const gatoSvg = (g: Gato): string => `
 <svg viewBox="0 0 200 200" role="img" aria-label="Ilustración de ${g.nombre}">
@@ -61,7 +47,7 @@ const tarjeta = (g: Gato): string => `
         <span class="chip">Busca casa</span>
       </article>`;
 
-const page = (): string => `<!DOCTYPE html>
+const page = (environment: string): string => `<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -278,8 +264,8 @@ const page = (): string => `<!DOCTYPE html>
 <footer>
   <div class="wrap">
     <div>
-      <span>Refugio Michi &middot; Practica 5, DevSecOps ITESO</span>
-      <span>Cloudflare Worker v${VERSION} &middot; <a class="link" href="/api/health">estado</a> &middot; <a class="link" href="/api/gatos">datos</a></span>
+      <span>Refugio Michi &middot; Practica 7, DevSecOps ITESO</span>
+      <span>Cloudflare Worker v${VERSION} (${environment}) &middot; <a class="link" href="/api/health">estado</a> &middot; <a class="link" href="/api/gatos">datos</a></span>
     </div>
   </div>
 </footer>
@@ -292,7 +278,7 @@ export default {
 		console.log(`${request.method} ${url.pathname}`);
 
 		if (url.pathname === "/") {
-			return new Response(page(), {
+			return new Response(page(env.ENVIRONMENT), {
 				headers: { "content-type": "text/html; charset=utf-8" },
 			});
 		}
@@ -302,7 +288,31 @@ export default {
 				status: "ok",
 				service: "iac-p5",
 				version: VERSION,
+				environment: env.ENVIRONMENT,
 			});
+		}
+
+		if (url.pathname === "/api/adopciones") {
+			if (request.method !== "POST") {
+				return Response.json({ error: "Method Not Allowed" }, { status: 405, headers: { allow: "POST" } });
+			}
+
+			let body: unknown;
+			try {
+				body = await request.json();
+			} catch {
+				return Response.json({ errores: ["El cuerpo debe ser JSON válido"] }, { status: 400 });
+			}
+
+			const resultado = validateAdopcion(body);
+			if (!resultado.ok) {
+				return Response.json({ errores: resultado.errores }, { status: 400 });
+			}
+
+			return Response.json(
+				{ mensaje: `Solicitud recibida para adoptar a ${resultado.solicitud.gato}`, solicitud: resultado.solicitud },
+				{ status: 201 },
+			);
 		}
 
 		if (url.pathname === "/api/gatos") {

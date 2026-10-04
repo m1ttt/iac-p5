@@ -40,7 +40,8 @@ describe("Refugio Michi worker", () => {
 		expect(await response.json()).toEqual({
 			status: "ok",
 			service: "iac-p5",
-			version: "2.0.0",
+			version: "3.0.0",
+			environment: "development",
 		});
 	});
 
@@ -69,5 +70,43 @@ describe("Refugio Michi worker", () => {
 			error: "Not Found",
 			path: "/no-existe",
 		});
+	});
+
+	it("accepts a valid adoption request on /api/adopciones", async () => {
+		const response = await SELF.fetch("https://example.com/api/adopciones", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ nombre: "Ana López", email: "ana@iteso.mx", gato: "michi" }),
+		});
+
+		expect(response.status).toBe(201);
+		expect(await response.json()).toEqual({
+			mensaje: "Solicitud recibida para adoptar a Michi",
+			solicitud: { nombre: "Ana López", email: "ana@iteso.mx", gato: "Michi" },
+		});
+	});
+
+	it("returns the validation errors on /api/adopciones", async () => {
+		const response = await SELF.fetch("https://example.com/api/adopciones", {
+			method: "POST",
+			body: JSON.stringify({ nombre: "Ana", email: "ana", gato: "Michi" }),
+		});
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({ errores: ["Se requiere un correo electrónico válido"] });
+	});
+
+	it("rejects a body that is not JSON on /api/adopciones", async () => {
+		const response = await SELF.fetch("https://example.com/api/adopciones", { method: "POST", body: "nombre=Ana" });
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({ errores: ["El cuerpo debe ser JSON válido"] });
+	});
+
+	it("answers 405 on GET /api/adopciones", async () => {
+		const response = await SELF.fetch("https://example.com/api/adopciones");
+
+		expect(response.status).toBe(405);
+		expect(response.headers.get("allow")).toBe("POST");
 	});
 });
