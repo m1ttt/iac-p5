@@ -1,9 +1,25 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
+	// DEV: the top level config. `wrangler deploy` publishes the Worker iac-p5.
 	"name": "iac-p5",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-09-20",
 	"observability": {
 		"enabled": true,
+	},
+	"vars": {
+		"ENVIRONMENT": "development",
+	},
+	"env": {
+		// PROD: `wrangler deploy --env production` publishes the separate Worker iac-p5-prod.
+		"production": {
+			"name": "iac-p5-prod",
+			"observability": {
+				"enabled": true,
+			},
+			"vars": {
+				"ENVIRONMENT": "production",
+			},
+		},
 	},
 }
