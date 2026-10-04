@@ -1,12 +1,21 @@
-name: Proyecto P5
+name: Pipeline P7 - UAT
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: pipeline-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
+    name: Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -16,9 +25,155 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm run test -- run
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build the Worker bundle
+        run: npm run build
+
+      - name: Publish the bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: worker-bundle
+          path: dist/
+          if-no-files-found: error
+
+  test:
+    name: Unit tests and coverage
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests with coverage
+        shell: bash
+        run: npm run test:coverage | tee coverage.txt
+
+      - name: Publish the coverage report in the job summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Reporte de cobertura de pruebas"
+            echo
+            echo "Umbral minimo: 80% en lineas, funciones, ramas y sentencias."
+            echo
+            echo '```text'
+            sed -n '/Test Files/,$p' coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish the coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage/
+            coverage.txt
+
+  deploy-dev:
+    name: Deploy to DEV
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: development
+      url: ${{ steps.deploy.outputs.deployment-url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download the bundle artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: worker-bundle
+          path: dist/
+
+      - name: Deploy the Worker iac-p5
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy dist/index.js --no-bundle
+
+      - name: Smoke test
+        shell: bash
+        run: |
+          url="${{ steps.deploy.outputs.deployment-url }}/api/health"
+          for i in $(seq 1 10); do
+            body=$(curl -fsS "$url") && echo "$body" | jq -e '.status == "ok" and .environment == "development"' && exit 0
+            sleep 6
+          done
+          echo "Smoke test failed: $url"
+          exit 1
+
+  deploy-prod:
+    name: Deploy to PROD
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.deployment-url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download the bundle artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: worker-bundle
+          path: dist/
+
+      - name: Deploy the Worker iac-p5-prod
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy dist/index.js --no-bundle --env production
+
+      - name: Smoke test
+        shell: bash
+        run: |
+          url="${{ steps.deploy.outputs.deployment-url }}/api/health"
+          for i in $(seq 1 10); do
+            body=$(curl -fsS "$url") && echo "$body" | jq -e '.status == "ok" and .environment == "production"' && exit 0
+            sleep 6
+          done
+          echo "Smoke test failed: $url"
+          exit 1
