@@ -62,6 +62,10 @@ jobs:
 
       - name: Run unit tests with coverage
         shell: bash
+        env:
+          # Plain text output, so the job summary has no ANSI color codes.
+          NO_COLOR: "1"
+          FORCE_COLOR: "0"
         run: npm run test:coverage | tee coverage.txt
 
       - name: Publish the coverage report in the job summary
@@ -71,8 +75,14 @@ jobs:
           {
             echo "## Reporte de cobertura de pruebas"
             echo
-            echo "Umbral minimo: 80% en lineas, funciones, ramas y sentencias."
+            echo "Commit \`${GITHUB_SHA::7}\`. Umbral minimo: 80% en lineas, funciones, ramas y sentencias."
             echo
+            if [ -f coverage/coverage-summary.json ]; then
+              echo "| Metrica | Cubierto | Total | % |"
+              echo "| --- | ---: | ---: | ---: |"
+              jq -r '.total | to_entries[] | select(.key == "lines" or .key == "statements" or .key == "functions" or .key == "branches") | "| \(.key) | \(.value.covered) | \(.value.total) | \(.value.pct)% |"' coverage/coverage-summary.json
+              echo
+            fi
             echo '```text'
             sed -n '/Test Files/,$p' coverage.txt
             echo '```'
