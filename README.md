@@ -59,7 +59,7 @@ functions, branches and statements. A lower value fails the pipeline.
 - Cloudflare Workers (`wrangler` v4)
 - TypeScript
 - Vitest with `@cloudflare/vitest-plugin` and `@vitest/coverage-istanbul`
-- GitHub Actions (`cloudflare/wrangler-action@v3`)
+- GitHub Actions (`cloudflare/wrangler-action@v4`)
 
 ## Local commands
 
